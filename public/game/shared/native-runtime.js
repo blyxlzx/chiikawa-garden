@@ -1261,9 +1261,9 @@
       if(restoreSelection!==false)state.selected=state.drag.previousSelected==='shovel'?null:state.drag.previousSelected;
       state.drag=null;state.held=null;state.hover=null;
     }
-    // Reveal the existing spawn lane without moving cells, spawns or ranges.
-    // Menus retain their original composition; a live battle uses a wider view.
-    function sceneWidth() {return game.status==='ready'?W:mobileLayout?view.logicalWidth:BATTLE_WIDTH;}
+    // Menus use the available width; battle geometry retains its registered
+    // planting cells and complete entrance independently of the screen ratio.
+    function sceneWidth() {return game.status==='ready'?view.logicalWidth:mobileLayout?view.logicalWidth:BATTLE_WIDTH;}
     function windowGeometry(battle){
       const sys=(platform.getWindowInfo?platform.getWindowInfo():platform.getSystemInfoSync?platform.getSystemInfoSync():{})||{};
       const width=Math.max(1,Number(sys.windowWidth||sys.screenWidth||canvas.width||W));
@@ -1277,7 +1277,7 @@
       const bottom=Math.min(height,Math.max(top+1,Number(safe.bottom)||height));
       const layout=battleLayout.calculate(width,height,{left,top,right,bottom},battle);
       const logicalWidth=layout.logicalWidth,scale=layout.scale;
-      const nextView={x:left+(right-left-logicalWidth*scale)/2,y:top+(bottom-top-H*scale)/2,width:logicalWidth*scale,height:H*scale,logicalWidth,scale,pixelRatio:dpr,displayPixelRatio:Math.max(1,Number(sys.pixelRatio)||1),windowWidth:width,windowHeight:height};
+      const nextView={x:layout.x,y:layout.y,width:layout.width,height:layout.height,logicalWidth,scale,battle:!!battle,pixelRatio:dpr,displayPixelRatio:Math.max(1,Number(sys.pixelRatio)||1),windowWidth:width,windowHeight:height};
       return {layout,view:nextView,width,height,dpr};
     }
     function resize() {
@@ -1799,6 +1799,35 @@
       }
       terrainRenderer.drawAmbient(ctx,{map,grid,width,height:H,time:game.status==='ready'?state.age:game.time});
     }
+    function drawViewportBackdrop(surface=ctx,background) {
+      // Extend only outside the safe view. Reflect the retained scene at its
+      // actual edge so terrain joins continuously at the same scale.
+      const dpr=view.pixelRatio,x=view.x*dpr,y=view.y*dpr,w=view.width*dpr,h=view.height*dpr,cw=canvas.width,ch=canvas.height;
+      if(x<=.01&&y<=.01&&x+w>=cw-.5&&y+h>=ch-.5)return;
+      surface.save();surface.beginPath();
+      if(y>0)surface.rect(0,0,cw,y);
+      if(y+h<ch)surface.rect(0,y+h,cw,ch-y-h);
+      if(x>0)surface.rect(0,y,x,h);
+      if(x+w<cw)surface.rect(x+w,y,cw-x-w,h);
+      surface.clip();
+      const home=state.overlay==='home';
+      rect(surface,0,0,cw,ch,home?'#2778b5':'#678248');
+      const source=home?(imageReady.homeBackground?images.homeBackground:null):(background||frameBackground||backgroundSnapshot()).cached;
+      if(source){
+        if(home){
+          const scale=Math.max(cw/source.width,ch/source.height);
+          surface.drawImage(source,(cw-source.width*scale)/2,(ch-source.height*scale)/2,source.width*scale,source.height*scale);
+        }else{
+          for(let row=Math.floor(-y/h);row<Math.ceil((ch-y)/h);row++)for(let col=Math.floor(-x/w);col<Math.ceil((cw-x)/w);col++){
+            if(row===0&&col===0)continue;
+            const flipX=Math.abs(col)%2,flipY=Math.abs(row)%2;
+            surface.save();surface.translate(x+col*w+(flipX?w:0),y+row*h+(flipY?h:0));surface.scale(flipX?-1:1,flipY?-1:1);
+            surface.drawImage(source,0,0,w,h);surface.restore();
+          }
+        }
+      }
+      surface.restore();
+    }
     function hideStaticTerrain(){
       staticTerrainFrame=false;frameBackground=null;staticTerrainRects=null;
       if(typeof platform.hideStaticTerrain==='function')try{platform.hideStaticTerrain();}catch(_){}
@@ -1917,6 +1946,7 @@
             surface.shadowColor='rgba(0,0,0,0)';surface.shadowBlur=0;surface.shadowOffsetX=0;surface.shadowOffsetY=0;
             surface.imageSmoothingEnabled=ctx.imageSmoothingEnabled;surface.imageSmoothingQuality=ctx.imageSmoothingQuality;
             rect(surface,0,0,canvas.width,canvas.height,'#171912');
+            drawViewportBackdrop(surface,background);
             surface.setTransform(...matrix);surface.beginPath();surface.rect(0,0,view.logicalWidth,H);surface.clip();
             surface.drawImage(background.cached,0,0,background.width,H);
           }finally{surface.restore();}
@@ -2815,13 +2845,15 @@
       addButton(id,x*1.6,y*1.6,w*1.6,h*1.6,fn);
     }
     function drawHome() {
-      // Original 800 x 600 selector geometry, uniformly scaled with the game.
-      ctx.save();ctx.scale(1.6,1.6);
-      if(!image('homeBackground',0,0,800,600))rect(ctx,0,0,800,600,'#2778b5');
-      ctx.save();ctx.translate(255+Math.sin(state.age*.06)*10,-57);ctx.rotate(.40);image('homeCloud',0,0,275,258);ctx.restore();
-      image('homeCenter',80,250,720,350);
+      // Recompose the separate original scenery layers at the current width.
+      // The stone, plaques and cast keep their original proportions.
+      ctx.save();ctx.translate(-panelOffset,0);ctx.scale(1.6,1.6);
+      const width=view.logicalWidth/1.6,extra=width-800,stoneOffset=extra*1.6,centerWidth=Math.max(720,extra+360);
+      if(!image('homeBackground',0,0,width,600))rect(ctx,0,0,width,600,'#2778b5');
+      ctx.save();ctx.translate(255+extra*.45+Math.sin(state.age*.06)*10,-57);ctx.rotate(.40);image('homeCloud',0,0,275,258);ctx.restore();
+      image('homeCenter',(width-centerWidth)/2+40,600-centerWidth*350/720,centerWidth,centerWidth*350/720);
       image('homeLeft',0,-79.8,476,680);
-      image('homeRight',71,41,730,560);
+      image('homeRight',71+extra,41,730,560);
       // A compact nailed sign belongs to the tree; no full-screen title card.
       ctx.save();ctx.translate(24,40);ctx.rotate(-.045);
       menuPolygon([[2,7],[127,0],[291,7],[294,112],[162,119],[0,112]],'#54341e','#241d14',4);
@@ -2837,6 +2869,8 @@
       ctx.save();ctx.translate(58,174);ctx.rotate(.025);
       menuPolygon([[0,0],[244,2],[239,39],[4,37]],'#624526','#2c281b',3);
       label(ctx,'已完成 '+completed+' / '+levelIds.length+' 项讨伐',121,20,18,'#e3d29a','center',true);ctx.restore();
+      ctx.save();ctx.translate(extra,0);
+      const centeredOffset=panelOffset;panelOffset=stoneOffset;
       classicMenuButton('home-adventure','讨伐任务',406,75,321,80,levels,true);
       classicMenuButton('home-endless','无尽讨伐',414,166,299,60,openEndless,false);
       classicMenuButton('home-challenges','小游戏',421,237,279,47,openChallenges,false);
@@ -2848,12 +2882,14 @@
       classicMenuButton('sound','游戏设置',575,334,108,33,openAudioSettings,false);
       const unseen=achievements.getState().unseen;
       classicMenuButton('home-achievements','成就收藏'+(unseen?' · 新 '+unseen:''),478,368,188,33,openAchievements,false);
+      ctx.restore();panelOffset=0;
       const music=musicState();
       const musicCaption=music.status==='playing'?'正在播放：睡衣派对之歌':music.status==='off'?'背景音乐已关闭':music.status==='error'?'可在游戏设置中重试音乐':'轻点画面，播放睡衣派对';
       label(ctx,musicCaption,183,235,12.5,'#f3e6b5','center',true,'#3e5431');
       // The existing Chiikawa cast stays animated on the foreground lawn.
       const cast=[{type:'sunflower',x:126,y:538,size:135,say:'呀哈！'},{type:'mascot',x:248,y:559,size:153,say:'一起加油！'},{type:'pea',x:367,y:551,size:134,say:'出发吧！'}];
       cast.forEach((friend,i)=>{
+        friend.x+=extra*.28;
         const greeting=state.homeGreeting&&state.homeGreeting.who===i?state.age-state.homeGreeting.at:99;
         const hop=greeting<.6?Math.sin(greeting/.6*Math.PI)*14:0;
         oval(ctx,friend.x,friend.y-2,friend.size*.32,8,'rgba(17,35,12,.32)');
@@ -2868,7 +2904,7 @@
       });
       if(state.homeGreeting&&state.age-state.homeGreeting.at>3)state.homeGreeting=null;
       ctx.restore();
-      sidebarButton(846,845,344);
+      ctx.save();ctx.translate(-centeredOffset,0);sidebarButton(view.logicalWidth-434,845,344);ctx.restore();panelOffset=centeredOffset;
     }
     function drawLevels() {
       const pages=Math.ceil(levelIds.length/8);
@@ -3355,7 +3391,7 @@
       syncGrid();
       if(state.speedOpen==='speed'&&(state.overlay||!['playing','paused'].includes(game.status))||state.speedOpen==='endless-speed'&&state.overlay!=='endless')state.speedOpen=false;
       if(state.overlay||!checkpointActive())state.endlessGrowthOpen=false;
-      if(view.logicalWidth!==sceneWidth()||(game.status==='ready'&&mobileLayout)){resize();return;}
+      if(view.battle!==(game.status!=='ready')){resize();return;}
       if(presentVisualFrame()){
         syncMusic();syncFuse();
         renderRequested=false;
@@ -3373,6 +3409,7 @@
       const terrainImpact=options.nativeStaticTerrain===true?game.effects.find(e=>(e.plantType==='cherry'||e.plantType==='jalapeno')&&(e.type==='burst'||e.type==='fire')&&e.age<.18):null;
       if(!prepareStaticTerrain(terrainImpact))hideStaticTerrain();
       ctx.setTransform(1,0,0,1,0,0);if(staticTerrainFrame){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#171912';if(!restoreStaticTerrainUnderlay())rect(ctx,0,0,canvas.width,canvas.height,'#171912');}else rect(ctx,0,0,canvas.width,canvas.height,'#171912');
+      drawViewportBackdrop();
       const dpr=view.pixelRatio;ctx.setTransform(dpr*view.scale,0,0,dpr*view.scale,dpr*view.x,dpr*view.y);
       ctx.save();ctx.beginPath();ctx.rect(0,0,view.logicalWidth,H);ctx.clip();
       const fullPage=['home','levels','endless','prepare','almanac','audio','upgrades','saves','challenges','achievements'].includes(state.overlay);
