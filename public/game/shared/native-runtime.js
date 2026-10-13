@@ -2837,17 +2837,17 @@
       ctx.save();ctx.translate(58,174);ctx.rotate(.025);
       menuPolygon([[0,0],[244,2],[239,39],[4,37]],'#624526','#2c281b',3);
       label(ctx,'已完成 '+completed+' / '+levelIds.length+' 项讨伐',121,20,18,'#e3d29a','center',true);ctx.restore();
-      classicMenuButton('home-adventure','讨伐任务',406,75,321,96,levels,true);
-      classicMenuButton('home-endless','无尽讨伐',414,187,299,77,openEndless,false);
-      classicMenuButton('home-challenges','小游戏',421,280,279,68,openChallenges,false);
-      // The four smaller plaques belong to the lower half of the headstone.
-      // Their left edge clears Hachiware's sprite and its complete touch target.
-      classicMenuButton('home-almanac','伙伴图鉴',436,374,126,41,openAlmanac,false);
-      classicMenuButton('home-saves','存档管理',576,381,123,41,openSaves,false);
-      classicMenuButton('help','玩法说明',441,423,121,39,()=>{state.returnOverlay='home';state.overlay='help';sound('select');},false);
-      classicMenuButton('sound','游戏设置',575,431,118,39,openAudioSettings,false);
+      classicMenuButton('home-adventure','讨伐任务',406,75,321,80,levels,true);
+      classicMenuButton('home-endless','无尽讨伐',414,166,299,60,openEndless,false);
+      classicMenuButton('home-challenges','小游戏',421,237,279,47,openChallenges,false);
+      // Keep all five secondary plaques on the tapered stone face, including
+      // their shadows, rather than extending them into the pots and pedestal.
+      classicMenuButton('home-almanac','伙伴图鉴',436,292,126,33,openAlmanac,false);
+      classicMenuButton('home-saves','存档管理',576,294,112,33,openSaves,false);
+      classicMenuButton('help','玩法说明',441,332,121,33,()=>{state.returnOverlay='home';state.overlay='help';sound('select');},false);
+      classicMenuButton('sound','游戏设置',575,334,108,33,openAudioSettings,false);
       const unseen=achievements.getState().unseen;
-      classicMenuButton('home-achievements','成就收藏'+(unseen?' · 新 '+unseen:''),447,480,245,39,openAchievements,false);
+      classicMenuButton('home-achievements','成就收藏'+(unseen?' · 新 '+unseen:''),478,368,188,33,openAchievements,false);
       const music=musicState();
       const musicCaption=music.status==='playing'?'正在播放：睡衣派对之歌':music.status==='off'?'背景音乐已关闭':music.status==='error'?'可在游戏设置中重试音乐':'轻点画面，播放睡衣派对';
       label(ctx,musicCaption,183,235,12.5,'#f3e6b5','center',true,'#3e5431');
