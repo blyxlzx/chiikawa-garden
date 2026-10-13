@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#171912">
+  <title>吉伊的守护花园 · 讨伐日常</title>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#211d25}
+    #game-surface{position:fixed;inset:0 auto auto 0;width:100%;height:100%;overflow:hidden;transform-origin:0 0}
+    #safe-area-probe{position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+    #native-canvas{position:relative;z-index:1}
+    canvas{display:block;width:100%;height:100%;touch-action:none;outline:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+    .preview-status{position:absolute;left:10px;bottom:9px;z-index:4;max-width:calc(100% - 20px);margin:0;padding:6px 10px;border:2px solid #35291f;border-radius:3px;color:#eee4cb;background:#4e485c;box-shadow:inset 0 1px #8c859c,inset 0 -1px #37303f,0 2px 0 #211a19;font:12px/1.5 "Microsoft YaHei",sans-serif;overflow-wrap:anywhere;pointer-events:none;text-shadow:0 1px #302637}
+    .preview-status.error{color:#ffe0a4;border-color:#5f3923;background:#54404a;box-shadow:inset 0 1px #a17c66,inset 0 -1px #35272b,0 2px 0 #211a19}
+    .preview-status.loading{left:50%;top:50%;bottom:auto;transform:translate(-50%,-50%);width:max-content;max-width:min(440px,calc(100% - 40px));padding:22px 28px;border-width:4px;border-radius:6px;color:#d4df77;background:linear-gradient(#858198 0,#76738e 12%,#625c77 100%);box-shadow:inset 0 3px #b1aabd,inset 3px 0 #9992a9,inset 0 -4px #494155,inset -3px 0 #565066,0 5px 0 #211a19,0 12px 30px #0006;font-size:17px;font-weight:700;line-height:1.6;text-align:center;text-shadow:0 2px #35291f}
+    .save-name-backdrop{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:20px;background:radial-gradient(ellipse at center,#211c2aba,#120e17e6);font:16px/1.5 "Microsoft YaHei",sans-serif;color:#eee4cb}
+    .save-name-dialog{width:min(440px,100%);max-height:calc(100svh - 40px);margin:0;padding:0 28px 26px;overflow:auto;overscroll-behavior:contain;border:5px solid #35291f;border-radius:7px;background:linear-gradient(110deg,#817b91,#76738e 48%,#676077);box-shadow:inset 0 3px #b1aabd,inset 3px 0 #9992a9,inset 0 -4px #494155,inset -3px 0 #565066,0 6px 0 #211a19,0 16px 42px #0009}
+    .save-name-dialog h2{margin:0 -24px 24px;padding:24px 20px 20px;border-bottom:2px solid #4a3d40;color:#d4df77;background:linear-gradient(#918a9d33,#40344226);box-shadow:0 1px #a69aab66;font-size:26px;font-weight:900;line-height:1.25;letter-spacing:1px;text-align:center;overflow-wrap:anywhere;text-shadow:0 2px #35291f,1px 0 #35291f}
+    .save-name-dialog label{display:block;margin:0 0 10px;color:#f3e9ce;font-size:14px;font-weight:700;line-height:1.4;letter-spacing:.5px;text-shadow:0 1px #35291f}
+    .save-name-dialog input{display:block;width:100%;min-width:0;min-height:50px;margin:0;padding:12px 14px;border:3px solid #4a3828;border-radius:3px;background:linear-gradient(#efdcac,#f5e6bd 35%,#f5e6bd);box-shadow:inset 0 2px 4px #8b70474d,0 1px #b4a598;color:#35291f;caret-color:#35291f;font:inherit;font-weight:700;line-height:1.5}
+    .save-name-dialog input::selection{color:#2f281e;background:#cfdb85}
+    .save-name-dialog input:focus{border-color:#554427;outline:3px solid #d4df77;outline-offset:3px}
+    .save-name-actions{display:grid;grid-template-columns:1fr 1.15fr;gap:14px;margin-top:24px;padding-top:20px;border-top:1px solid #4b404e;box-shadow:inset 0 1px #a69aab66}
+    .save-name-actions button{min-width:0;min-height:48px;padding:10px 14px;border:3px solid #35291f;border-radius:4px;background:linear-gradient(#938ba3,#716680 55%,#62586f);box-shadow:inset 0 2px #beb3cd,inset 2px 0 #9e91ad,inset 0 -3px #474051,0 3px 0 #35291f;color:#d4df77;font:900 17px/1.3 "Microsoft YaHei",sans-serif;letter-spacing:1px;text-shadow:0 2px #35291f;cursor:pointer}
+    .save-name-actions button[type=button]{color:#e9e0c6;background:linear-gradient(#797183,#5b5266);box-shadow:inset 0 2px #a399ae,inset 0 -3px #413948,0 3px 0 #35291f}
+    .save-name-actions button[type=submit]{color:#ddeb80}
+    .save-name-actions button:hover:not(:disabled){color:#f1ffa1;background:linear-gradient(#a49ab3,#7b6e8e 55%,#706080)}
+    .save-name-actions button[type=button]:hover:not(:disabled){color:#fff3d3;background:linear-gradient(#8a7f97,#6b5e78)}
+    .save-name-actions button:focus-visible{outline:3px solid #d4df77;outline-offset:4px}
+    .save-name-actions button:active:not(:disabled){background:linear-gradient(#5f536c,#766781);box-shadow:inset 0 3px 4px #35291f,0 1px 0 #35291f}
+    .save-name-actions button:disabled{color:#c2b8b4;background:#665e70;box-shadow:inset 0 1px #938697,0 2px 0 #35291f;text-shadow:0 1px #35291f;opacity:.62;cursor:default}
+    @media(max-width:380px),(max-height:420px){.save-name-backdrop{padding:12px}.save-name-dialog{max-height:calc(100svh - 24px);padding:0 20px 20px}.save-name-dialog h2{margin:0 -16px 19px;padding:18px 12px 15px;font-size:23px}.save-name-actions{margin-top:20px;padding-top:16px;gap:12px}}
+  </style>
+  <script src="shared/browser-viewport.js"></script>
+  <script src="shared/prepared-restore-dependencies.js"></script>
+  <script src="shared/scene-terrain.js"></script>
+  <script src="shared/combat-feedback.js"></script>
+  <script src="shared/run-director.js"></script>
+  <script src="engine.js"></script>
+  <script src="shared/endless-worker-bridge.js"></script>
+  <script src="shared/pvz-motion-data.js"></script>
+  <script src="shared/retained-scene.js"></script>
+  <script src="shared/character-motion.js"></script>
+  <script src="shared/sun-collection.js"></script>
+  <script src="shared/combat-effects.js"></script>
+  <script src="shared/terrain-renderer.js"></script>
+  <script src="shared/lily-renderer.js"></script>
+  <script src="shared/explosive-sound.js"></script>
+  <script src="shared/save-library.js"></script>
+  <script src="shared/challenge-modes.js"></script>
+  <script src="shared/battle-layout.js"></script>
+  <script src="shared/resilient-images.js"></script>
+  <script src="shared/autosave-history.js"></script>
+  <script src="shared/tutorial.js"></script>
+  <script src="shared/browser-assets.js"></script>
+  <script src="shared/achievements.js"></script>
+  <script src="shared/gpu-presentation-bridge.js"></script>
+  <script src="shared/render-worker-bridge.js"></script>
+  <script src="shared/native-runtime.js"></script>
+</head>
+<body>
+  <div id="safe-area-probe" aria-hidden="true"></div>
+  <div id="game-surface">
+  <canvas id="native-canvas" tabindex="0" aria-label="吉伊的守护花园，3章24项讨伐任务、无尽讨伐与9项小游戏和3种小游戏无尽玩法，每局选择10位伙伴，按数字1至9及0选择对应种子包，0对应第10张，点击草坪种植，也可按住拖动种植。"></canvas>
+  <p id="preview-status" class="preview-status loading" role="status">正在准备小伙伴们的花园…</p>
+  </div>
+  <script>
+  (function () {
+    'use strict';
+    var canvas=document.getElementById('native-canvas'),status=document.getElementById('preview-status');
+    var touchHandlers=[],moveHandlers=[],endHandlers=[],cancelHandlers=[],hideHandlers=[],showHandlers=[],resizeHandlers=[],audioContext=null,activePointers=new Map();
+    var viewport=GardenBrowserViewport.create({window:window,document:document,canvas:canvas,surface:document.getElementById('game-surface'),insetProbe:document.getElementById('safe-area-probe'),onResize:function(){cancelPointers();resizeHandlers.slice().forEach(function(fn){fn();});}});
+    var explosiveBuffers=Object.create(null),explosiveSources=Object.create(null);
+    var effectVoices=[],lastShootAt=-Infinity,lastSunAt=-Infinity;
+    var pendingTextClose=null,pendingFileClose=null;
+    function remove(list,handler){var index=list.indexOf(handler);if(index>=0)list.splice(index,1);}
+    function playTone(from,to,duration,volume,type,delay){
+      var time=audioContext.currentTime+(delay||0),osc=audioContext.createOscillator(),gain=audioContext.createGain();
+      var voice={osc:osc,gain:gain};
+      // Keep rapid pickups and large volleys from accumulating unlimited audio voices.
+      if(effectVoices.length>=12){var oldest=effectVoices.shift();try{oldest.osc.stop();}catch(_){}oldest.osc.disconnect();oldest.gain.disconnect();}
+      effectVoices.push(voice);
+      osc.type=type||'sine';osc.frequency.setValueAtTime(from,time);osc.frequency.exponentialRampToValueAtTime(to,time+duration);
+      gain.gain.setValueAtTime(.0001,time);gain.gain.linearRampToValueAtTime(volume,time+.003);gain.gain.exponentialRampToValueAtTime(.0001,time+duration);
+      osc.connect(gain);gain.connect(audioContext.destination);
+      osc.onended=function(){remove(effectVoices,voice);osc.disconnect();gain.disconnect();};
+      osc.start(time);osc.stop(time+duration+.005);
+    }
+    function createInnerAudioContext(){
+      var element=document.createElement('audio'),listeners={play:[],pause:[],stop:[],error:[]},disposed=false,operation=0,pauseReason=null;
+      element.hidden=true;element.preload='auto';element.setAttribute('data-role','game-background-music');document.body.appendChild(element);
+      function emit(name,value){if(disposed)return;listeners[name].slice().forEach(function(fn){try{fn(value);}catch(error){console.warn('Audio listener failed',error);}});}
+      function failed(error){emit('error',{blocked:!!(error&&error.name==='NotAllowedError'),errMsg:error&&error.message||String(error||'Audio playback failed')});}
+      element.addEventListener('playing',function(){if(!element.paused)emit('play');});
+      element.addEventListener('pause',function(){if(!element.paused)return;if(pauseReason==='stop'){pauseReason=null;return;}emit('pause');});
+      element.addEventListener('error',function(){failed(element.error||new Error('Audio resource could not be loaded'));});
+      var api={
+        play:function(){
+          if(disposed)return;var current=++operation;pauseReason=null;
+          try{var pending=element.play();if(pending&&typeof pending.catch==='function')return pending.catch(function(error){if(!disposed&&current===operation)failed(error);});}
+          catch(error){if(current===operation)failed(error);}
+        },
+        pause:function(){if(disposed)return;operation++;pauseReason='pause';element.pause();},
+        stop:function(){if(disposed)return;operation++;pauseReason='stop';element.pause();try{element.currentTime=0;}catch(_){}emit('stop');},
+        destroy:function(){if(disposed)return;disposed=true;operation++;element.pause();element.removeAttribute('src');element.load();element.remove();Object.keys(listeners).forEach(function(name){listeners[name].length=0;});}
+      };
+      Object.defineProperties(api,{
+        src:{get:function(){return element.getAttribute('src')||'';},set:function(value){if(!disposed){operation++;element.src=String(value||'');}}},
+        loop:{get:function(){return element.loop;},set:function(value){element.loop=!!value;}},
+        paused:{get:function(){return element.paused;}},
+        volume:{get:function(){return element.volume;},set:function(value){var number=Number(value);if(Number.isFinite(number))element.volume=Math.max(0,Math.min(1,number));}}
+      });
+      ['Play','Pause','Stop','Error'].forEach(function(name){var event=name.toLowerCase();api['on'+name]=function(fn){if(typeof fn==='function')listeners[event].push(fn);};api['off'+name]=function(fn){remove(listeners[event],fn);};});
+      return api;
+    }
+    function requestText(options){
+      options=options||{};
+      if(pendingTextClose)pendingTextClose(null);
+      cancelPointers();
+      return new Promise(function(resolve){
+        var previousFocus=document.activeElement,backdrop=document.createElement('div'),form=document.createElement('form');
+        backdrop.className='save-name-backdrop';form.className='save-name-dialog';
+        form.setAttribute('role','dialog');form.setAttribute('aria-modal','true');form.setAttribute('aria-labelledby','save-name-title');
+        form.innerHTML='<h2 id="save-name-title"></h2><label for="save-name-input">存档名称</label><input id="save-name-input" type="text" autocomplete="off"><div class="save-name-actions"><button type="button">取消</button><button type="submit">保存</button></div>';
+        var title=form.querySelector('h2'),input=form.querySelector('input'),cancel=form.querySelector('[type=button]'),submit=form.querySelector('[type=submit]'),settled=false;
+        title.textContent=String(options.title||'存档名称');input.maxLength=Number.isInteger(options.maxLength)?Math.max(1,Math.min(80,options.maxLength)):24;
+        input.value=String(options.value||'').slice(0,input.maxLength);submit.disabled=!input.value.trim();
+        function finish(value){
+          if(settled)return;settled=true;if(pendingTextClose===finish)pendingTextClose=null;
+          window.removeEventListener('pagehide',cancelRequest);backdrop.remove();
+          if(previousFocus&&previousFocus.isConnected&&typeof previousFocus.focus==='function')previousFocus.focus({preventScroll:true});
+          resolve(value);
+        }
+        function cancelRequest(){finish(null);}
+        pendingTextClose=finish;window.addEventListener('pagehide',cancelRequest);
+        input.addEventListener('input',function(){submit.disabled=!input.value.trim();});
+        form.addEventListener('submit',function(event){event.preventDefault();if(!submit.disabled)finish(input.value);});
+        cancel.addEventListener('click',cancelRequest);
+        backdrop.addEventListener('click',function(event){if(event.target===backdrop)cancelRequest();});
+        backdrop.addEventListener('keydown',function(event){
+          event.stopPropagation();
+          if(event.key==='Escape'&&!event.isComposing){event.preventDefault();cancelRequest();return;}
+          if(event.key==='Tab'){
+            var controls=submit.disabled?[input,cancel]:[input,cancel,submit],index=controls.indexOf(document.activeElement);
+            if(event.shiftKey&&index<=0){event.preventDefault();controls[controls.length-1].focus();}
+            else if(!event.shiftKey&&index===controls.length-1){event.preventDefault();input.focus();}
+          }
+        });
+        backdrop.appendChild(form);document.body.appendChild(backdrop);input.focus({preventScroll:true});input.select();
+      });
+    }
+    function writeTextFile(options){
+      if(!options||typeof options.contents!=='string')throw new Error('导出内容无效。');
+      var blob=new Blob([options.contents],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+      link.href=url;link.download=String(options.name||'吉伊花园存档.json').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_');link.hidden=true;
+      try{document.body.appendChild(link);link.click();}finally{link.remove();window.setTimeout(function(){URL.revokeObjectURL(url);},1000);}
+      return true;
+    }
+    function readTextFile(){
+      if(pendingFileClose)pendingFileClose(null);
+      cancelPointers();
+      return new Promise(function(resolve,reject){
+        var input=document.createElement('input'),settled=false,reading=false,cancelTimer=null;
+        input.type='file';input.accept='.json,application/json';input.hidden=true;
+        function finish(value,error){
+          if(settled)return;settled=true;if(pendingFileClose===finish)pendingFileClose=null;
+          window.clearTimeout(cancelTimer);window.removeEventListener('focus',returned);window.removeEventListener('pagehide',cancel);
+          input.remove();if(error)reject(error);else resolve(value);
+        }
+        function cancel(){finish(null);}
+        function returned(){
+          // The cancel event is supported in current browsers. The focus check
+          // also releases the request in older ones that only refocus the page.
+          window.clearTimeout(cancelTimer);cancelTimer=window.setTimeout(function(){if(!reading&&(!input.files||!input.files.length))cancel();},1000);
+        }
+        pendingFileClose=finish;input.addEventListener('cancel',cancel);window.addEventListener('focus',returned);window.addEventListener('pagehide',cancel);
+        input.addEventListener('change',function(){
+          var file=input.files&&input.files[0];if(!file){cancel();return;}
+          reading=true;
+          if(file.size>8*1024*1024){finish(null,new Error('存档文件不能超过 8 MiB。'));return;}
+          if(!/\.json$/i.test(file.name)){finish(null,new Error('请选择 JSON 存档文件。'));return;}
+          try{Promise.resolve(file.text()).then(function(text){finish(text);},function(){finish(null,new Error('无法读取存档文件，请重新选择。'));});}
+          catch(_){finish(null,new Error('无法读取存档文件，请重新选择。'));}
+        });
+        document.body.appendChild(input);try{input.click();}catch(_){finish(null,new Error('无法打开文件选择器。'));}
+      });
+    }
+    var motionForeground=null,motionSurface=null,visualBase=null,visualForeground=null,gpuPresentationSurface=null,gpuBaseSurface=null,gpuFrontSurface=null,gpuPlanesVisible=false;
+    function hideVisualLayers(){
+      gpuPlanesVisible=false;
+      if(visualBase)visualBase.style.display='none';if(visualForeground)visualForeground.style.display='none';
+      if(gpuPresentationSurface)gpuPresentationSurface.style.display='none';
+      if(gpuBaseSurface)gpuBaseSurface.style.display='none';if(gpuFrontSurface)gpuFrontSurface.style.display='none';
+      canvas.style.opacity='';
+    }
+    function bitmapLayer(base,foreground){
+      var layer=foreground?visualForeground:visualBase;
+      if(!layer){
+        layer=document.createElement('canvas');layer.dataset.gardenLayer=foreground?'visual-foreground':'visual-base';
+        styleMotionLayer(layer,foreground?3:0);base.parentNode.appendChild(layer);
+        var context=layer.getContext('bitmaprenderer');
+        if(!context){layer.remove();return null;}layer.visualBitmapContext=context;
+        if(foreground)visualForeground=layer;else visualBase=layer;
+      }
+      if(layer.width!==base.width)layer.width=base.width;if(layer.height!==base.height)layer.height=base.height;
+      return layer;
+    }
+    function styleMotionLayer(layer,z){
+      Object.assign(layer.style,{position:'absolute',left:'0',top:'0',width:'100%',height:'100%',pointerEvents:'none',zIndex:String(z),display:'none'});
+      layer.tabIndex=-1;layer.setAttribute('aria-hidden','true');
+    }
+    var staticTerrainSurface=null;
+    function presentStaticTerrain(base,paint){
+      if(base!==canvas||!base.parentNode)return false;
+      if(!staticTerrainSurface){
+        if(typeof paint!=='function')return false;
+        staticTerrainSurface=document.createElement('canvas');staticTerrainSurface.dataset.gardenLayer='terrain';
+        styleMotionLayer(staticTerrainSurface,0);base.parentNode.insertBefore(staticTerrainSurface,base);
+      }
+      if(staticTerrainSurface.width!==base.width||staticTerrainSurface.height!==base.height){
+        if(typeof paint!=='function')return false;
+        staticTerrainSurface.width=base.width;staticTerrainSurface.height=base.height;
+      }
+      var surface=staticTerrainSurface.getContext('2d');if(!surface)return false;
+      try{if(paint)paint(surface);}catch(_){staticTerrainSurface.style.display='none';return false;}
+      staticTerrainSurface.style.display='block';return true;
+    }
+    function commonPixelGrid(backingWidth,backingHeight,displayWidth,displayHeight,left=0,top=0){
+  const values=[backingWidth,backingHeight,displayWidth,displayHeight,left,top];
+  if(!values.every(Number.isSafeInteger)||backingWidth<=0||backingHeight<=0||displayWidth<=0||displayHeight<=0||backingWidth<displayWidth||backingHeight<displayHeight||backingWidth*backingHeight>24*1024*1024)return null;
+  function gcd(a,b){while(b){const remainder=a%b;a=b;b=remainder;}return a;}
+  const quantumX=backingWidth/gcd(backingWidth,displayWidth),quantumY=backingHeight/gcd(backingHeight,displayHeight);
+  // A very large grid would erase the benefit of partial opaque regions.
+  if(quantumX>128||quantumY>128)return null;
+  return {tileX:quantumX*Math.ceil(32/quantumX),tileY:quantumY*Math.ceil(32/quantumY),backingWidth,backingHeight,displayWidth,displayHeight,left,top};
+}
+    function getStaticTerrainGrid(base){
+      if(base!==canvas||!base.parentNode||typeof base.getBoundingClientRect!=='function'||typeof window.getComputedStyle!=='function')return null;
+      try{
+        var layout=viewport&&viewport.getLayout();if(!layout||layout.rotated)return null;
+        var style=window.getComputedStyle(base),parentStyle=window.getComputedStyle(base.parentNode);
+        // Browser viewport owns this closed layout. An external transform,
+        // fractional physical placement or base-only compositing opts out.
+        if(style.transform!=='none'||parentStyle.transform!=='none'||style.filter!=='none'||style.opacity!=='1'||style.mixBlendMode!=='normal')return null;
+        var rect=base.getBoundingClientRect(),dpr=window.devicePixelRatio;
+        if(!Number.isFinite(dpr)||dpr<=0||!rect||!Number.isFinite(rect.width)||!Number.isFinite(rect.height)||rect.width<=0||rect.height<=0)return null;
+        return commonPixelGrid(base.width,base.height,rect.width*dpr,rect.height*dpr,rect.left*dpr,rect.top*dpr);
+      }catch(_){return null;}
+    }
+    function restoreStaticTerrain(base,rectangles){
+      if(base!==canvas||!staticTerrainSurface||staticTerrainSurface.style.display!=='block'||staticTerrainSurface.width!==base.width||staticTerrainSurface.height!==base.height||!Array.isArray(rectangles))return false;
+      // Validate the complete batch before changing a pixel; partial failure is
+      // followed by Native's complete opaque original frame.
+      for(var i=0;i<rectangles.length;i++){var r=rectangles[i];if(!Array.isArray(r)||r.length!==4||!r.every(Number.isInteger)||r[0]<0||r[1]<0||r[2]<=0||r[3]<=0||r[0]+r[2]>base.width||r[1]+r[3]>base.height)return false;}
+      var target=base.getContext('2d');if(!target)return false;
+      target.save();try{
+        target.setTransform(1,0,0,1,0,0);target.globalAlpha=1;target.globalCompositeOperation='source-over';target.imageSmoothingEnabled=false;
+        if('filter'in target)target.filter='none';target.shadowColor='rgba(0,0,0,0)';target.shadowBlur=0;target.shadowOffsetX=0;target.shadowOffsetY=0;
+        for(var i=0;i<rectangles.length;i++){var r=rectangles[i];target.drawImage(staticTerrainSurface,r[0],r[1],r[2],r[3],r[0],r[1],r[2],r[3]);}
+      }catch(_){return false;}finally{target.restore();}return true;
+    }
+    function hideStaticTerrain(){if(staticTerrainSurface)staticTerrainSurface.style.display='none';}
+    function disposeStaticTerrain(){
+      if(staticTerrainSurface){staticTerrainSurface.remove();staticTerrainSurface.width=0;staticTerrainSurface.height=0;}
+      staticTerrainSurface=null;
+    }
+    var platform={
+      staticTerrainPresentation:true,presentStaticTerrain:presentStaticTerrain,restoreStaticTerrain:restoreStaticTerrain,getStaticTerrainGrid:getStaticTerrainGrid,hideStaticTerrain:hideStaticTerrain,disposeStaticTerrain:disposeStaticTerrain,
+      setCursor:function(cursor){canvas.style.cursor=cursor;},
+      createCanvas:function(){return document.createElement("canvas");},createImage:function(){return new Image();},
+      createMeshCanvas:function(){return document.createElement("canvas");},
+      motionLayerPresentation:true,
+      beginMotionScene:function(base){
+        if(!base.parentNode)return null;
+        hideVisualLayers();
+        if(!motionForeground){motionForeground=document.createElement('canvas');motionForeground.dataset.gardenLayer='foreground';styleMotionLayer(motionForeground,3);base.parentNode.appendChild(motionForeground);}
+        if(motionForeground.width!==base.width)motionForeground.width=base.width;
+        if(motionForeground.height!==base.height)motionForeground.height=base.height;
+        return motionForeground.getContext('2d');
+      },
+      presentMotionScene:function(mesh,base,clip,visual){
+        if(!visual)hideVisualLayers();
+        if(motionSurface!==mesh){if(motionSurface)motionSurface.remove();motionSurface=mesh;motionSurface.dataset.gardenLayer='mesh';styleMotionLayer(motionSurface,2);base.parentNode.insertBefore(motionSurface,motionForeground);}
+        var inset=[clip.y/base.height,(base.width-clip.x-clip.width)/base.width,(base.height-clip.y-clip.height)/base.height,clip.x/base.width].map(function(n){return Math.max(0,n)*100+'%';});
+        motionSurface.style.clipPath='inset('+inset.join(' ')+')';motionSurface.style.display='block';if(motionForeground)motionForeground.style.display=visual?'none':'block';
+      },
+      hideMotionScene:function(){
+        hideVisualLayers();
+        if(motionSurface)motionSurface.style.display='none';if(motionForeground)motionForeground.style.display='none';
+      },
+      disposeMotionScene:function(){
+        if(window.nativeGPUPresenter)window.nativeGPUPresenter.destroy();
+        hideVisualLayers();
+        if(gpuPresentationSurface)gpuPresentationSurface.remove();gpuPresentationSurface=null;
+        if(gpuBaseSurface)gpuBaseSurface.remove();gpuBaseSurface=null;if(gpuFrontSurface)gpuFrontSurface.remove();gpuFrontSurface=null;
+        [visualBase,visualForeground].forEach(function(layer){if(layer){layer.remove();layer.width=0;layer.height=0;}});visualBase=visualForeground=null;
+        if(motionSurface)motionSurface.remove();motionSurface=null;
+        if(motionForeground){motionForeground.remove();motionForeground.width=0;motionForeground.height=0;}motionForeground=null;
+      },
+      presentVisualFrame:function(details,base){
+        if(details&&details.workerPlanes){
+          if(!details.sceneCanvas||!base||!base.parentNode||details.sceneCanvas!==gpuPresentationSurface||!gpuBaseSurface||!gpuFrontSurface||!details.packet.clip)return false;
+          if(gpuPlanesVisible)return true;
+          hideVisualLayers();if(motionSurface)motionSurface.style.display='none';if(motionForeground)motionForeground.style.display='none';
+          if(staticTerrainSurface)staticTerrainSurface.style.display='none';
+          var clip=details.packet.clip;
+          var inset=[clip.y/base.height,(base.width-clip.x-clip.width)/base.width,(base.height-clip.y-clip.height)/base.height,clip.x/base.width].map(function(n){return Math.max(0,n)*100+'%';});
+          gpuPresentationSurface.style.clipPath='inset('+inset.join(' ')+')';
+          gpuBaseSurface.style.display='block';gpuPresentationSurface.style.display='block';gpuFrontSurface.style.display='block';base.style.opacity='0';gpuPlanesVisible=true;return true;
+        }
+        if(!details||!details.packet||!details.sceneCanvas||!base.parentNode)return false;
+        if(details.changed){
+          var packet=details.packet,back=packet.baseBitmap,front=packet.foregroundBitmap;
+          if(!back||!front||back.width!==base.width||back.height!==base.height||front.width!==base.width||front.height!==base.height)return false;
+          hideStaticTerrain();
+          var backLayer=bitmapLayer(base,false),frontLayer=bitmapLayer(base,true);if(!backLayer||!frontLayer)return false;
+          backLayer.visualBitmapContext.transferFromImageBitmap(back);frontLayer.visualBitmapContext.transferFromImageBitmap(front);
+        }
+        if(!visualBase||!visualForeground)return false;
+        platform.presentMotionScene(details.sceneCanvas,base,details.clip,true);
+        visualBase.style.display='block';visualForeground.style.display='block';base.style.opacity='0';return true;
+      },
+      createInnerAudioContext:createInnerAudioContext,
+      getSystemInfoSync:function(){return Object.assign(viewport.getSystemInfo(),{pixelRatio:window.devicePixelRatio||1,renderPixelRatio:Math.max(2,window.devicePixelRatio||1),preferredRenderQuality:'ultra'});},
+      requestAnimationFrame:function(fn){return window.requestAnimationFrame(fn);},cancelAnimationFrame:function(id){window.cancelAnimationFrame(id);},
+      onTouchStart:function(fn){touchHandlers.push(fn);},offTouchStart:function(fn){remove(touchHandlers,fn);},
+      onTouchMove:function(fn){moveHandlers.push(fn);},offTouchMove:function(fn){remove(moveHandlers,fn);},
+      onTouchEnd:function(fn){endHandlers.push(fn);},offTouchEnd:function(fn){remove(endHandlers,fn);},
+      onTouchCancel:function(fn){cancelHandlers.push(fn);},offTouchCancel:function(fn){remove(cancelHandlers,fn);},
+      onHide:function(fn){hideHandlers.push(fn);},offHide:function(fn){remove(hideHandlers,fn);},
+      onShow:function(fn){showHandlers.push(fn);},offShow:function(fn){remove(showHandlers,fn);},
+      onWindowResize:function(fn){resizeHandlers.push(fn);},offWindowResize:function(fn){remove(resizeHandlers,fn);},
+      getStorageSync:function(key){var value=localStorage.getItem(key);if(value===null)return'';try{return JSON.parse(value);}catch(_){return value;}},
+      setStorageSync:function(key,value){localStorage.setItem(key,JSON.stringify(value));},
+      // Exact same localStorage keys/JSON bytes, with no intermediate parsing.
+      autosaveRawText:true,
+      getStorageTextSync:function(key){return localStorage.getItem(key);},
+      setStorageTextSync:function(key,text){if(typeof text!=='string')throw new Error('Storage text must be a string');localStorage.setItem(key,text);},
+      removeStorageTextSync:function(key){localStorage.removeItem(key);},
+      requestText:requestText,writeTextFile:writeTextFile,readTextFile:readTextFile,
+      unlockAudio:function(){try{if(!audioContext)audioContext=new(window.AudioContext||window.webkitAudioContext)();if(audioContext.state==='suspended'){var pending=audioContext.resume();if(pending&&pending.catch)pending.catch(function(){});}}catch(_){}},
+      stopSound:function(kind){
+        var source=explosiveSources[kind];if(!source)return;delete explosiveSources[kind];
+        try{source.stop();}catch(_){}
+      },
+      playSound:function(kind,offset){
+        if(!audioContext)return;
+        var explosive=window.GardenExplosiveSound;
+        if(explosive&&Object.prototype.hasOwnProperty.call(explosive.DURATIONS,kind)){
+          if(kind==='fuse')platform.stopSound(kind);
+          var buffer=explosiveBuffers[kind];
+          if(!buffer){var pcm=explosive.generate(kind),created=audioContext.createBuffer(1,pcm.length,explosive.SAMPLE_RATE);created.getChannelData(0).set(pcm);buffer=explosiveBuffers[kind]=created;}
+          var source=audioContext.createBufferSource(),level=audioContext.createGain();
+          source.buffer=buffer;level.gain.value=explosive.VOLUMES[kind];source.connect(level);level.connect(audioContext.destination);explosiveSources[kind]=source;
+          source.onended=function(){if(explosiveSources[kind]===source)delete explosiveSources[kind];source.disconnect();level.disconnect();};
+          var startAt=Math.max(0,Math.min(explosive.DURATIONS[kind]-.001,Number(offset)||0));source.start(0,startAt);return;
+        }
+        var time=audioContext.currentTime;
+        if(kind==='shoot'){
+          if(time-lastShootAt<.065)return;lastShootAt=time;
+          playTone(480,170,.05,.012,'triangle');return;
+        }
+        if(kind==='sun'){
+          if(time-lastSunAt<.04)return;lastSunAt=time;
+          playTone(950,1250,.085,.042,'sine');playTone(1440,1670,.11,.029,'sine',.04);return;
+        }
+        if(kind==='plant'){
+          playTone(180,75,.11,.08,'triangle');playTone(650,340,.045,.025,'sine');return;
+        }
+        if(kind==='deny'){
+          playTone(180,140,.045,.035,'triangle');playTone(160,120,.05,.025,'triangle',.055);return;
+        }
+        var tones={select:[720,900,.035,.043,'triangle'],cancel:[360,220,.05,.035,'sine'],burst:[150,45,.2,.055,'triangle'],wave:[300,460,.25,.055],win:[660,990,.35,.055],lose:[320,160,.35,.055],shovel:[240,120,.085,.05,'triangle']};
+        var tone=tones[kind]||tones.select;playTone(tone[0],tone[1],tone[2],tone[3],tone[4]);
+      }
+    };
+    if(typeof window.Worker==='function'){
+      platform.trustedWorkerTransport=true;
+      platform.nativeCheckpointBarrierVoidVersion=1;
+      platform.nativePeriodicCheckpointVersion=1;
+      // A dedicated browser macrotask splits raw checkpoint receipt from the
+      // original complete save/restore action. No raw state enters this scheduler.
+      platform.checkpointTaskBoundaryVersion=1;
+      platform.yieldCheckpointTask=function(){
+        return new Promise(function(resolve){
+          if(typeof window.MessageChannel==='function'){
+            var channel=new window.MessageChannel();
+            channel.port1.onmessage=function(){
+              channel.port1.onmessage=null;channel.port1.close();channel.port2.close();resolve();
+            };
+            channel.port2.postMessage(0);
+          }else window.setTimeout(resolve,0);
+        });
+      };
+      platform.createSimulationWorker=function(){
+        if(typeof window.GardenWorkerSource==='string'&&window.GardenWorkerSource){
+          var workerUrl=window.URL.createObjectURL(new window.Blob([window.GardenWorkerSource],{type:'application/javascript'}));
+          try{
+            var worker=new window.Worker(workerUrl),terminate=worker.terminate,revoked=false;
+            worker.terminate=function(){
+              try{return terminate.apply(worker,arguments);}
+              finally{if(!revoked){revoked=true;window.URL.revokeObjectURL(workerUrl);}}
+            };
+            return worker;
+          }catch(error){window.URL.revokeObjectURL(workerUrl);throw error;}
+        }
+        return new window.Worker(new window.URL('shared/endless-worker.js',document.baseURI));
+      };
+    }
+    function pointerTouch(event){return viewport.mapPoint({clientX:event.clientX,clientY:event.clientY,identifier:event.pointerId,pointerType:event.pointerType});}
+    function dispatchTouch(handlers,touch){var event={changedTouches:[touch],touches:Array.from(activePointers.values()),pointerType:touch.pointerType};handlers.slice().forEach(function(fn){fn(event);});}
+    function releasePointer(id){try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch(_) {}}
+    function cancelPointers(){
+      var touches=Array.from(activePointers.values());activePointers.clear();
+      cancelHandlers.slice().forEach(function(fn){fn({changedTouches:touches,touches:[]});});
+      touches.forEach(function(touch){releasePointer(touch.identifier);});
+    }
+    canvas.addEventListener('pointerdown',function(event){
+      if(event.button!==0)return;event.preventDefault();canvas.focus({preventScroll:true});
+      var touch=pointerTouch(event);activePointers.set(event.pointerId,touch);
+      try{canvas.setPointerCapture(event.pointerId);}catch(_) {}
+      dispatchTouch(touchHandlers,touch);
+    });
+    canvas.addEventListener('pointermove',function(event){
+      var active=activePointers.has(event.pointerId);
+      if(!active&&(event.pointerType!=='mouse'&&event.pointerType!=='pen'))return;
+      event.preventDefault();var touch=pointerTouch(event);if(active)activePointers.set(event.pointerId,touch);dispatchTouch(moveHandlers,touch);
+    });
+    canvas.addEventListener('pointerleave',function(event){
+      if(activePointers.has(event.pointerId))return;
+      dispatchTouch(moveHandlers,{clientX:-10000,clientY:-10000,identifier:event.pointerId,pointerType:event.pointerType});
+    });
+    canvas.addEventListener('pointerup',function(event){
+      if(!activePointers.has(event.pointerId))return;event.preventDefault();activePointers.delete(event.pointerId);dispatchTouch(endHandlers,pointerTouch(event));releasePointer(event.pointerId);
+      if(window.nativeGame&&typeof window.nativeGame.unlockAudio==='function')window.nativeGame.unlockAudio();
+    });
+    canvas.addEventListener('pointercancel',function(event){
+      if(!activePointers.has(event.pointerId))return;activePointers.delete(event.pointerId);dispatchTouch(cancelHandlers,pointerTouch(event));releasePointer(event.pointerId);
+    });
+    canvas.addEventListener('lostpointercapture',function(event){
+      var touch=activePointers.get(event.pointerId);if(!touch)return;activePointers.delete(event.pointerId);dispatchTouch(cancelHandlers,touch);
+    });
+    canvas.addEventListener('contextmenu',function(event){event.preventDefault();if(window.nativeGame){window.nativeGame.select(null);window.nativeGame.render();}});
+    document.addEventListener('visibilitychange',function(){if(document.hidden)cancelPointers();(document.hidden?hideHandlers:showHandlers).slice().forEach(function(fn){fn();});});
+    window.addEventListener('blur',function(){cancelPointers();hideHandlers.slice().forEach(function(fn){fn();});});
+    window.addEventListener('pagehide',function(){cancelPointers();hideHandlers.slice().forEach(function(fn){fn();});});
+    window.addEventListener('focus',function(){if(!document.hidden)showHandlers.slice().forEach(function(fn){fn();});});
+    document.addEventListener('keydown',function(event){
+      var runtime=window.nativeGame;if(!runtime)return;
+      var target=event.target||document.activeElement;
+      if(event.isComposing||event.ctrlKey||event.metaKey||event.altKey||(target&&(target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)||(typeof target.closest==='function'&&target.closest('[contenteditable="true"], [role="textbox"]')))))return;
+      var key=String(event.key||'').toLowerCase(),state=runtime.getState();
+      var gameplayKey=!state.overlay&&runtime.game.status==='playing'&&(/^[0-9]$/.test(key)||key==='s');
+      var pauseKey=event.code==='Space'&&((runtime.game.status==='playing'&&!state.overlay)||(runtime.game.status==='paused'&&state.overlay==='pause'));
+      var upgradeKey=key==='u'&&runtime.game.isEndless&&(!state.overlay||state.overlay==='pause');
+      if(!gameplayKey&&!pauseKey&&!upgradeKey&&key!=='escape')return;
+      event.preventDefault();if(event.repeat)return;
+      if(typeof runtime.unlockAudio==='function')runtime.unlockAudio();
+      if(gameplayKey){
+        var selection=key==='s'?'shovel':state.deck[key==='0'?9:Number(key)-1];
+        if(selection)runtime.select(state.selected===selection?null:selection);
+      }
+      else if(upgradeKey&&typeof runtime.openUpgrades==='function')runtime.openUpgrades();
+      else if(pauseKey){if(runtime.game.status==='playing')runtime.pause();else runtime.resume();}
+      else if(key==='escape')runtime.back();
+      runtime.render();
+    });
+    async function boot(){
+      var motion=window.GardenMotion,coreReport={pending:1,errors:[]},motionReport={pending:!!(motion&&motion.load),error:''};
+      var retryButton=document.createElement('button');retryButton.type='button';retryButton.textContent='重试资源';retryButton.hidden=true;
+      retryButton.setAttribute('aria-label','重新加载失败的图片和动作资源');
+      retryButton.style.cssText='position:absolute;right:12px;bottom:10px;z-index:5;pointer-events:auto;color:#ffefbf;background:#50442e;border:1px solid #c5ad76;border-radius:6px;padding:7px 13px;font:inherit;cursor:pointer';
+      status.parentNode.appendChild(retryButton);
+      function updateStatus(){
+        var count=(coreReport.errors||[]).length+(motionReport.error?1:0),pending=coreReport.pending||motionReport.pending;
+        status.className='preview-status'+(count?' error':'');status.hidden=!count&&!pending;
+        status.textContent=count?count+' 组资源暂未就绪'+(pending?'，正在重试…':'，可点击重试资源'):(pending?'正在加载画面资源…':'');
+        retryButton.hidden=!count;
+      }
+      var motionLoader=GardenBrowserAssets.create({motion:motion,platform:platform,assetRoot:'assets/',onChange:function(report){motionReport=report;updateStatus();},onReady:function(){if(window.nativeGame)window.nativeGame.render();}});
+      var visualRenderer=null,gpuPresenter=null;
+      if(window.Worker&&window.OffscreenCanvas&&window.createImageBitmap&&window.GardenRenderWorkerBridge&&window.GardenGPUPresentationBridge&&typeof canvas.transferControlToOffscreen==='function'){
+        gpuPresentationSurface=document.createElement('canvas');gpuPresentationSurface.dataset.gardenLayer='gpu-presentation';
+        gpuPresentationSurface.width=canvas.width;gpuPresentationSurface.height=canvas.height;
+        styleMotionLayer(gpuPresentationSurface,2);canvas.parentNode.appendChild(gpuPresentationSurface);
+        gpuBaseSurface=document.createElement('canvas');gpuBaseSurface.dataset.gardenLayer='gpu-base';gpuBaseSurface.width=canvas.width;gpuBaseSurface.height=canvas.height;styleMotionLayer(gpuBaseSurface,0);canvas.parentNode.appendChild(gpuBaseSurface);
+        gpuFrontSurface=document.createElement('canvas');gpuFrontSurface.dataset.gardenLayer='gpu-foreground';gpuFrontSurface.width=canvas.width;gpuFrontSurface.height=canvas.height;styleMotionLayer(gpuFrontSurface,3);canvas.parentNode.appendChild(gpuFrontSurface);
+        platform.createGPUPresentationWorker=function(){
+          if(typeof window.GardenGPUPresentationWorkerSource==='string'&&window.GardenGPUPresentationWorkerSource){
+            var url=URL.createObjectURL(new Blob([window.GardenGPUPresentationWorkerSource],{type:'application/javascript'}));
+            try{var worker=new Worker(url),terminate=worker.terminate,revoked=false;
+              worker.terminate=function(){try{return terminate.apply(worker,arguments);}finally{if(!revoked){revoked=true;URL.revokeObjectURL(url);}}};return worker;
+            }catch(error){URL.revokeObjectURL(url);throw error;}
+          }
+          return new Worker(new URL('shared/gpu-presentation-worker.js',document.baseURI));
+        };
+        gpuPresenter=GardenGPUPresentationBridge.create({platform:platform,compactDescriptors:true,privateReplayStateCache:false,coalesceClipUploads:false,canvas:gpuPresentationSurface,baseCanvas:gpuBaseSurface,foregroundCanvas:gpuFrontSurface,
+          retainedScript:new URL('shared/retained-scene.js',document.baseURI).href,bundled:!!window.GardenGPUPresentationWorkerSource,
+          onFailure:function(error){hideVisualLayers();console.warn('GPU presentation fallback',error);}});
+      }
+      window.nativeGPUPresenter=gpuPresenter;
+      if(window.Worker&&window.OffscreenCanvas&&window.createImageBitmap&&window.GardenRenderWorkerBridge){
+        platform.createVisualWorker=function(){
+          if(typeof window.GardenVisualWorkerSource==='string'&&window.GardenVisualWorkerSource){
+            var workerUrl=window.URL.createObjectURL(new window.Blob([window.GardenVisualWorkerSource],{type:'application/javascript'}));
+            try{var worker=new window.Worker(workerUrl),terminate=worker.terminate,revoked=false;
+              worker.terminate=function(){try{return terminate.apply(worker,arguments);}finally{if(!revoked){revoked=true;window.URL.revokeObjectURL(workerUrl);}}};return worker;
+            }catch(error){window.URL.revokeObjectURL(workerUrl);throw error;}
+          }
+          return new window.Worker(new window.URL('shared/render-worker.js',document.baseURI));
+        };
+        visualRenderer=GardenRenderWorkerBridge.create({platform:platform,compactDescriptors:true,persistentAssetBitmaps:true,outputBackingCPU:false,outputSnapshotTransfer:false,captureStages:false,runtimeOptions:{fixedHUDImageCache:false,separateToastLabelCache:false,deviceBackgroundCache:false},motion:motion,gpuPresenter:gpuPresenter,presentationCanvas:gpuPresentationSurface,presentationBaseCanvas:gpuBaseSurface,presentationFrontCanvas:gpuFrontSurface,bundled:!!window.GardenVisualWorkerSource,scriptBase:new URL('./',document.baseURI).href,assetRoot:new URL('assets/',document.baseURI).href,onFailure:function(error){hideVisualLayers();console.warn('Visual worker fallback',error);}});
+      }
+      window.nativeVisualRenderer=visualRenderer;
+      window.nativeGame=GardenNative.create({platform:platform,visualRenderer:visualRenderer,nativeCheckpointBarrierVoid:true,nativePeriodicCheckpoint:true,nativeCheckpointTaskBoundary:true,nativeStaticTerrain:true,nativeStaticWarmup:true,canvas:canvas,engine:GardenEngine,motion:motion,assetRoot:'assets/',onAssetStatus:function(report){coreReport=report;updateStatus();},onRetryAssets:function(){motionLoader.retry();}});
+      window.nativePreviewPlatform=platform;window.nativeMotionAssets=motionLoader;
+      retryButton.onclick=function(){window.nativeGame.retryAssets();};
+      window.addEventListener('online',function(){if(window.nativeGame)window.nativeGame.retryAssets();});
+      // Never block the playable static fallback on seven animation textures.
+      motionLoader.start();
+      await window.nativeGame.ready;coreReport=window.nativeGame.getAssetStatus();updateStatus();
+    }
+    boot().catch(function(error){status.className='preview-status error loading';status.textContent='花园启动失败：'+error.message;console.error(error);});
+  })();
+  </script>
+</body>
+</html>
